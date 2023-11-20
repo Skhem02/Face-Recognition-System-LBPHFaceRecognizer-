@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Face Recognition</title>
+    <style>
+        body {
+            position: relative;
+        }
+
+        .capture-button {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+        }
+    </style>
+</head>
+<body style = "background-color: black;">
+    <h1 style = "color: beige; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;">Live Face Recognition</h1>
+    <img src="{{ url_for('video_feed') }}" alt="Video Stream">
+    <div class="capture-button">
+        <a href="{{ url_for('capture') }}"><button style = "border-radius:3rem; color: beige; background-color: black; border-color: beige;">Capture Data</button></a>
+    </div>
+</body>
+</html>

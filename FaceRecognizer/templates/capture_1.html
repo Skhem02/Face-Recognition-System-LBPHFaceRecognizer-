@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <title>Face Recognition Data Capture</title>
+    <style>
+        video {
+            width: 320px;
+            height: auto;
+        }
+
+        .capture-button {
+            margin-top: 20px;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Face Recognition Data Capture</h1>
+    <label for="personName">Enter Person's Name:</label>
+    <input type="text" id="personName" placeholder="Person's Name">
+    <br>
+    <video id="video" autoplay></video>
+    <div class="capture-button">
+        <button id="captureButton">Capture Data</button>
+        <p id="progress"></p>
+    </div>
+    <p id="notification"></p>
+
+    <script src="https://cdn.socket.io/4.3.2/socket.io.min.js"></script>
+    <script>
+        const video = document.getElementById('video');
+        const captureButton = document.getElementById('captureButton');
+        const personNameInput = document.getElementById('personName');
+        const notification = document.getElementById('notification');
+        const progress = document.getElementById('progress');
+
+        const socket = io(); // Establish socket connection
+
+        navigator.mediaDevices.getUserMedia({ video: true })
+            .then(function (stream) {
+                video.srcObject = stream;
+            })
+            .catch(function (error) {
+                console.error('Error accessing the webcam:', error);
+            });
+
+        captureButton.addEventListener('click', function () {
+            const personName = personNameInput.value.trim();
+            if (personName === '') {
+                alert('Please enter the person\'s name.');
+                return;
+            }
+
+            const numImagesToCapture = 100;
+            let captureCount = 0;
+
+            function captureImage() {
+                progress.textContent = `Capturing image: ${captureCount + 1}/${numImagesToCapture}`;
+
+                const canvas = document.createElement('canvas');
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+
+                const dataURL = canvas.toDataURL('image/png');
+
+                fetch('/capture_data', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        personName: personName,
+                        imageData: dataURL,
+                    }),
+                })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.face_detected) {
+                            captureCount++;
+                            progress.textContent = `Capturing image: ${captureCount + 1}/${numImagesToCapture}`;
+                            socket.emit('progress', { progress: captureCount });
+                        }
+
+                        if (captureCount >= numImagesToCapture) {
+                            notification.textContent = `Image capture completed for ${personName}.`;
+                        } else {
+                            captureImage();
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                    });
+            }
+
+            captureImage();
+        });
+    </script>
+</body>
+
+</html>

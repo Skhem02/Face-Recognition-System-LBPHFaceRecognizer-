@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <title>Face Recognition Data Capture</title>
+</head>
+
+<body  style = "background-color: black; color: beige; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;">
+    <h1>Face Recognition Data Capture</h1>
+    <label for="personName">Enter Person's Name:</label>
+    <input type="text" id="personName" placeholder="Person's Name">
+    <br>
+    <button style="background-color: black; border-radius: 3rem; border-color: beige; color:beige" id="startCamera">Start Camera</button>
+    <button style="background-color: black; border-radius: 3rem; border-color: beige; color:beige" id="stopCamera" disabled>Stop Camera</button>
+    <br>
+    <video id="cameraFeed" autoplay style="display: none;"></video>
+    <p id="progress"></p>
+    <p id="notification"></p>
+
+    <script src="https://cdn.socket.io/4.3.2/socket.io.min.js"></script>
+    <script>
+        const startCameraButton = document.getElementById('startCamera');
+        const stopCameraButton = document.getElementById('stopCamera');
+        const personNameInput = document.getElementById('personName');
+        const cameraFeed = document.getElementById('cameraFeed');
+        const progress = document.getElementById('progress');
+        const notification = document.getElementById('notification');
+
+        let stream; // Reference to the camera stream
+
+        const socket = io(); // Establish socket connection
+
+        // Handle starting the camera feed
+        startCameraButton.addEventListener('click', async function () {
+            const personName = personNameInput.value.trim();
+            if (personName === '') {
+                alert('Please enter the person\'s name.');
+                return;
+            }
+
+            // Request access to the user's webcam
+            try {
+                stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                cameraFeed.srcObject = stream;
+                cameraFeed.style.display = 'block';
+                startCameraButton.disabled = true;
+                stopCameraButton.disabled = false;
+
+                // Start capturing images
+                captureImages(personName);
+            } catch (error) {
+                console.error('Error accessing the webcam:', error);
+            }
+        });
+
+        // Handle stopping the camera feed
+        stopCameraButton.addEventListener('click', function () {
+            if (stream) {
+                const tracks = stream.getTracks();
+                tracks.forEach(track => track.stop());
+            }
+            cameraFeed.style.display = 'none';
+            startCameraButton.disabled = false;
+            stopCameraButton.disabled = true;
+        });
+
+        // Function to capture images
+        function captureImages(personName) {
+            if (!stream) {
+                console.error('Error: Camera stream not available.');
+                return;
+            }
+
+            const numImagesToCapture = 100;
+            let captureCount = 0;
+
+            async function captureNextImage() {
+                if (captureCount >= numImagesToCapture) {
+                    notification.textContent = `Image capture completed for ${personName}.`;
+                    return;
+                }
+
+                progress.textContent = `Capturing image: ${captureCount + 1}/${numImagesToCapture}`;
+
+                const canvas = document.createElement('canvas');
+                canvas.width = cameraFeed.videoWidth;
+                canvas.height = cameraFeed.videoHeight;
+                canvas.getContext('2d').drawImage(cameraFeed, 0, 0, canvas.width, canvas.height);
+
+                const imageData = canvas.toDataURL('image/png');
+
+                // Send the captured image data to the server
+                fetch('/capture_data', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        personName: personName,
+                        imageData: imageData,
+                    }),
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.face_detected) {
+                        captureCount++;
+                        progress.textContent = `Capturing image: ${captureCount}/${numImagesToCapture}`;
+                        socket.emit('progress', { progress: captureCount });
+                        captureNextImage(); // Capture next image
+                    } else {
+                        notification.textContent = `No face detected. Please adjust the camera setup.`;
+                    }
+                })
+                .catch(error => {
+                    console.error('Error capturing image:', error);
+                });
+            }
+
+            captureNextImage();
+        }
+    </script>
+</body>
+
+</html>
